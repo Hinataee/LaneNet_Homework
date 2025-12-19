@@ -218,7 +218,7 @@ class HNetLoss(nn.Module):
                     x_pred = torch.matmul(Y, w)
                     
                     # 计算MSE损失
-                    lane_loss = torch.mean((x_prime - x_pred) ** 2) * torch.mean(torch.abs(denominator)) 
+                    lane_loss = torch.mean((x_prime - x_pred) ** 2) * (torch.mean(torch.abs(denominator))** 2)
                     loss += lane_loss
                     valid_lanes += 1
                 except Exception:
