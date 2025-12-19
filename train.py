@@ -28,7 +28,7 @@ class Trainer:
     
     def __init__(self, args):
         self.args = args
-        self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device('cuda:2' if torch.cuda.is_available() else 'cpu')
         print(f"Using device: {self.device}")
         
         # 创建保存目录
@@ -39,7 +39,7 @@ class Trainer:
         self.writer = SummaryWriter(TRAIN_CONFIG['log_dir'])
         
         # 构建模型
-        self.model = LaneNet(embedding_dim=MODEL_CONFIG['embedding_dim'], use_hnet=False).to(self.device)
+        self.model = LaneNet(embedding_dim=MODEL_CONFIG['embedding_dim'], use_hnet=True).to(self.device)
         print(f"Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
         
         # 损失函数

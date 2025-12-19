@@ -37,7 +37,7 @@ class Evaluator:
             os.makedirs(EVAL_CONFIG['visualization_dir'], exist_ok=True)
         
         # 构建模型
-        self.model = LaneNet(embedding_dim=MODEL_CONFIG['embedding_dim'], use_hnet=False).to(self.device)
+        self.model = LaneNet(embedding_dim=MODEL_CONFIG['embedding_dim'], use_hnet=True).to(self.device)
         
         # 加载checkpoint
         checkpoint_path = args.checkpoint or EVAL_CONFIG['checkpoint']
@@ -148,9 +148,21 @@ class Evaluator:
         instance_seg_pred = outputs['instance_seg'].cpu().permute(0, 2, 3, 1).numpy()
 
         # 获取 HNet 预测参数
-        hnet_params = None
+        hnet_params = [None]*images.size(0)
         if 'hnet_params' in outputs:
-            hnet_params = outputs['hnet_params'].cpu().numpy()
+            hnet_params = outputs['hnet_params'].cpu()
+            H = torch.zeros(hnet_params.size(0), 3, 3, device=hnet_params.device)
+            # Row 0: [a, b, c]
+            H[:, 0, 0] = hnet_params[:, 0] # a
+            H[:, 0, 1] = hnet_params[:, 1] # b
+            H[:, 0, 2] = hnet_params[:, 2] # c
+            # Row 1: [0, d, e]
+            H[:, 1, 1] = hnet_params[:, 3] # d
+            H[:, 1, 2] = hnet_params[:, 4] # e
+            # Row 2: [0, f, 1]
+            H[:, 2, 1] = hnet_params[:, 5] # f
+            H[:, 2, 2] = 1.0
+            hnet_params = H.cpu()
         
         batch_size = images.size(0)
         
@@ -174,7 +186,7 @@ class Evaluator:
 
             
             # 拟合车道线
-            lane_lines = fit_lane_lines(instance_mask, num_lanes)
+            lane_lines = fit_lane_lines(instance_mask, num_lanes, hnet_matrix=hnet_params[i])
             
             # 可视化
             vis_image = visualize_lanes(image, lane_lines)

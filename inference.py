@@ -73,6 +73,23 @@ class LaneDetector:
         
         # 前向传播
         outputs = self.model(input_tensor)
+
+        # 获取 HNet 预测参数
+        hnet_params = [None]
+        if 'hnet_params' in outputs:
+            hnet_params = outputs['hnet_params'].cpu()
+            H = torch.zeros(hnet_params.size(0), 3, 3, device=hnet_params.device)
+            # Row 0: [a, b, c]
+            H[:, 0, 0] = hnet_params[:, 0] # a
+            H[:, 0, 1] = hnet_params[:, 1] # b
+            H[:, 0, 2] = hnet_params[:, 2] # c
+            # Row 1: [0, d, e]
+            H[:, 1, 1] = hnet_params[:, 3] # d
+            H[:, 1, 2] = hnet_params[:, 4] # e
+            # Row 2: [0, f, 1]
+            H[:, 2, 1] = hnet_params[:, 5] # f
+            H[:, 2, 2] = 1.0
+            hnet_params = H.cpu()
         
         # 二值分割
         binary_seg = torch.argmax(outputs['binary_seg'], dim=1)[0].cpu().numpy()
@@ -89,7 +106,7 @@ class LaneDetector:
         )
         
         # 拟合车道线
-        lane_lines = fit_lane_lines(instance_mask, num_lanes)
+        lane_lines = fit_lane_lines(instance_mask, num_lanes, hnet_matrix=hnet_params[0])
         
         # 调整车道线坐标到原始尺寸
         scale_x = original_size[0] / MODEL_CONFIG['input_size'][1]

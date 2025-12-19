@@ -87,59 +87,56 @@ def fit_lane_lines(instance_mask, num_lanes, hnet_matrix=None):
             continue
 
         if hnet_matrix is not None:
-            try:
-                # 构建齐次坐标 [x, y, 1]
-                # 注意：图像坐标 x对应列(coords[:, 1]), y对应行(coords[:, 0])
-                xs = coords[:, 1]
-                ys = coords[:, 0]
-                ones = np.ones_like(xs)
-                P = np.vstack((xs, ys, ones)) # [3, N]
-                
-                # 透视变换 P' = H * P
-                P_prime = hnet_matrix @ P
-                
-                # 归一化
-                denominator = P_prime[2, :]
-                denominator[np.abs(denominator) < 1e-6] = 1e-6 # 避免除零
-                xs_proj = P_prime[0, :] / denominator
-                ys_proj = P_prime[1, :] / denominator
-                
-                # 在 BEV 空间拟合: x' = f(y')
-                # 使用 2阶 或 3阶 多项式
-                poly_params = np.polyfit(ys_proj, xs_proj, deg=3)
-                poly_func = np.poly1d(poly_params)
-                
-                # 生成平滑点
-                y_min, y_max = np.min(ys_proj), np.max(ys_proj)
-                plot_ys = np.linspace(y_min, y_max, num=50)
-                plot_xs = poly_func(plot_ys)
-                
-                # 反变换回原图: P = H_inv * P'
-                bev_coords = np.vstack((plot_xs, plot_ys, np.ones_like(plot_xs)))
-                orig_coords = H_inv @ bev_coords
-                
-                # 归一化
-                denom_orig = orig_coords[2, :]
-                denom_orig[np.abs(denom_orig) < 1e-6] = 1e-6
-                final_xs = orig_coords[0, :] / denom_orig
-                final_ys = orig_coords[1, :] / denom_orig
-                
-                # 过滤出图像范围内的点
-                h, w = instance_mask.shape
-                valid_mask = (final_xs >= 0) & (final_xs < w) & (final_ys >= 0) & (final_ys < h)
-                
-                if np.sum(valid_mask) > 2:
-                    lane_points = np.column_stack([final_xs[valid_mask], final_ys[valid_mask]])
-                    lane_lines.append(lane_points)
-                else:
-                    # 如果反变换后点都跑出去了，回退到原始点
-                    raise ValueError("All points out of bounds after inverse transform")
-                    
-            except Exception as e:
-                # print(f"HNet fit failed for lane {lane_id}: {e}, using raw points")
-                # 失败时回退到普通拟合逻辑（或者直接使用原始点）
-                lane_points = np.column_stack([coords[:, 1], coords[:, 0]])
+            # try:
+            # 构建齐次坐标 [x, y, 1]
+            # 注意：图像坐标 x对应列(coords[:, 1]), y对应行(coords[:, 0])
+            if hasattr(hnet_matrix, 'detach'):
+                hnet_matrix = hnet_matrix.detach().cpu().numpy()
+            xs = coords[:, 1]
+            ys = coords[:, 0]
+            ones = np.ones_like(xs)
+            P = np.vstack((xs, ys, ones)) # [3, N]
+            
+            # 透视变换 P' = H * P
+            P_prime = hnet_matrix @ P
+            # 归一化
+            denominator = P_prime[2, :]
+            denominator[np.abs(denominator) < 1e-6] = 1e-6 # 避免除零
+            xs_proj = P_prime[0, :] / denominator
+            ys_proj = P_prime[1, :] / denominator
+            print("Denominator for original coords:", denominator)
+            
+            # 在 BEV 空间拟合: x' = f(y')
+            # 使用 2阶 或 3阶 多项式
+            poly_params = np.polyfit(ys_proj, xs_proj, deg=3)
+            poly_func = np.poly1d(poly_params)
+            
+            # 生成平滑点
+            y_min, y_max = np.min(ys_proj), np.max(ys_proj)
+            plot_ys = np.linspace(y_min, y_max, num=50)
+            plot_xs = poly_func(plot_ys)
+            
+            # 反变换回原图: P = H_inv * P'
+            bev_coords = np.vstack((plot_xs, plot_ys, np.ones_like(plot_xs)))
+            orig_coords = H_inv @ bev_coords
+            
+            # 归一化
+            denom_orig = orig_coords[2, :]
+            denom_orig[np.abs(denom_orig) < 1e-6] = 1e-6
+            final_xs = orig_coords[0, :] / denom_orig
+            final_ys = orig_coords[1, :] / denom_orig
+            
+            # 过滤出图像范围内的点
+            h, w = instance_mask.shape
+            valid_mask = (final_xs >= 0) & (final_xs < w) & (final_ys >= 0) & (final_ys < h)
+            
+            if np.sum(valid_mask) > 2:
+                lane_points = np.column_stack([final_xs[valid_mask], final_ys[valid_mask]])
                 lane_lines.append(lane_points)
+            else:
+                # 如果反变换后点都跑出去了，回退到原始点
+                raise ValueError("All points out of bounds after inverse transform")
+                    
     
         else:
             # 按y坐标排序

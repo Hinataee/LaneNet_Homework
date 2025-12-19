@@ -206,7 +206,7 @@ class LaneNet(nn.Module):
     1. 二值分割分支：检测车道线区域
     2. 实例分割分支：区分不同车道线
     """
-    def __init__(self, embedding_dim=4, use_hnet=False):
+    def __init__(self, embedding_dim=4, use_hnet=True):
         super(LaneNet, self).__init__()
         
         self.embedding_dim = embedding_dim
